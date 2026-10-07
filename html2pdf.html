@@ -21,6 +21,7 @@
             --border: #CBD5E1;
             --success: #10B981;
             --danger: #EF4444;
+            --warning: #F59E0B;
         }
 
         * {
@@ -64,7 +65,7 @@
             opacity: 0.9;
         }
 
-        /* Filter & Controls */
+        /* Filter Controls */
         .filter-container {
             display: flex;
             justify-content: space-between;
@@ -93,7 +94,6 @@
             color: var(--text-muted);
         }
 
-        /* Status Storage Indicator */
         .storage-status {
             font-size: 11px;
             color: var(--success);
@@ -127,10 +127,22 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             page-break-inside: avoid;
             break-inside: avoid;
+            transition: all 0.3s ease;
         }
 
         .kpi-card.editable {
             cursor: pointer;
+        }
+
+        .kpi-card.need-budget {
+            border: 2px solid var(--danger);
+            animation: pulse-border 1.5s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
 
         .kpi-title {
@@ -266,6 +278,25 @@
             cursor: pointer;
         }
 
+        /* Toast Alert Banner */
+        .alert-banner {
+            display: none;
+            background-color: #FEF3C7;
+            border: 1px solid #F59E0B;
+            color: #92400E;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .alert-banner.show {
+            display: flex;
+        }
+
         /* Tables */
         .table-responsive {
             overflow-x: auto;
@@ -343,6 +374,7 @@
         .pdf-exporting .hide-on-pdf,
         .pdf-exporting .form-input-card,
         .pdf-exporting .filter-container,
+        .pdf-exporting .alert-banner,
         .pdf-exporting .edit-hint {
             display: none !important;
         }
@@ -371,12 +403,18 @@
         </div>
     </div>
 
+    <!-- Toast Warning Alert -->
+    <div class="alert-banner" id="alert-banner">
+        <span id="alert-message">⚠️ Harap atur Target Budget terlebih dahulu!</span>
+        <button class="btn btn-secondary" style="color: #92400E; border-color: #92400E;" onclick="editTotalBudgetDirectly()">Atur Budget Sekarang</button>
+    </div>
+
     <!-- KPI Summary Cards -->
     <div class="kpi-grid">
-        <div class="kpi-card editable" onclick="editTotalBudgetDirectly()" title="Klik untuk mengubah Target Budget Total">
+        <div class="kpi-card editable" id="card-budget" onclick="editTotalBudgetDirectly()" title="Klik untuk mengubah Target Budget Total">
             <div class="kpi-title">TARGET BUDGET ✏️</div>
             <div class="kpi-value">
-                <div id="kpi-budget">Rp 3.000.000</div>
+                <div id="kpi-budget">Rp 0</div>
                 <div class="edit-hint">(Klik untuk ubah)</div>
             </div>
         </div>
@@ -489,7 +527,7 @@
     };
 
     let expenses = [];
-    let customTotalBudget = null;
+    let customTotalBudget = 0; // Default awal 0 agar memicu notifikasi jika belum diisi
     let expenseChart = null;
 
     function formatRp(val) {
@@ -503,7 +541,7 @@
         document.getElementById("filter-month").value = `${year}-${month}`;
     }
 
-    // Auto Load & Backup Data
+    // Auto Load Data
     function loadData() {
         const savedCategories = localStorage.getItem("expense_app_cats");
         if (savedCategories) {
@@ -518,6 +556,10 @@
         const savedTotalBudget = localStorage.getItem("expense_app_budget_total");
         if (savedTotalBudget !== null) {
             customTotalBudget = parseFloat(savedTotalBudget);
+        } else {
+            // Hitung total awal dari kategori jika ada
+            const sumCategories = Object.values(categories).reduce((a, b) => a + b, 0);
+            customTotalBudget = sumCategories > 0 ? sumCategories : 0;
         }
 
         document.getElementById("input-date").valueAsDate = new Date();
@@ -528,22 +570,19 @@
     function saveData() {
         localStorage.setItem("expense_app_cats", JSON.stringify(categories));
         localStorage.setItem("expense_app_data", JSON.stringify(expenses));
-        if (customTotalBudget !== null) {
-            localStorage.setItem("expense_app_budget_total", customTotalBudget);
-        }
+        localStorage.setItem("expense_app_budget_total", customTotalBudget);
     }
 
     function editTotalBudgetDirectly() {
-        const currentSum = Object.values(categories).reduce((a, b) => a + b, 0);
-        const currentTotal = customTotalBudget !== null ? customTotalBudget : currentSum;
-
-        const input = prompt("Masukkan Target Budget Total Bulanan yang Baru (Rp):", currentTotal);
+        const input = prompt("Masukkan Target Budget Total Bulanan yang Baru (Rp):", customTotalBudget || 3000000);
         if (input !== null) {
             const newTotal = parseFloat(input);
-            if (!isNaN(newTotal) && newTotal >= 0) {
+            if (!isNaN(newTotal) && newTotal > 0) {
                 customTotalBudget = newTotal;
                 saveData();
                 updateDashboard();
+            } else {
+                alert("Nominal Target Budget harus berupa angka lebih dari 0!");
             }
         }
     }
@@ -616,7 +655,6 @@
             }
         });
         categories = newCats;
-        customTotalBudget = null;
         saveData();
         populateCategoryDropdown();
         updateDashboard();
@@ -629,9 +667,27 @@
         const desc = document.getElementById("input-desc").value.trim();
         const amount = parseFloat(document.getElementById("input-amount").value);
 
+        // Validasi 1: Cek kelengkapan input
         if (!date || !category || !desc || isNaN(amount) || amount <= 0) {
-            alert("Lengkapi semua kolom transaksi!");
+            alert("⚠️ Harap lengkapi tanggal, kategori, keterangan, dan jumlah nominal dengan benar!");
             return;
+        }
+
+        // Validasi 2: Cek Apakah Target Budget Total Masih Kosong (0)
+        if (!customTotalBudget || customTotalBudget <= 0) {
+            alert("⚠️ PERINGATAN: Anda belum mengisi Target Budget Total!\n\nSilakan klik/atur kartu 'TARGET BUDGET TOTAL' terlebih dahulu sebelum mencatat pengeluaran.");
+            editTotalBudgetDirectly();
+            return;
+        }
+
+        // Validasi 3: Cek Over Budget Warning (Opsional: Memberikan konfirmasi jika akan melebihi budget)
+        const selectedMonth = date.substring(0, 7);
+        const filteredCurrentMonth = expenses.filter(e => e.date.startsWith(selectedMonth));
+        const currentTotal = filteredCurrentMonth.reduce((a, b) => a + b.amount, 0);
+
+        if ((currentTotal + amount) > customTotalBudget) {
+            const overConfirm = confirm(`⚠️ PERINGATAN OVER BUDGET!\n\nPengeluaran ini (${formatRp(amount)}) akan membuat total pengeluaran bulan ini (${formatRp(currentTotal + amount)}) MELEBIHI Target Budget (${formatRp(customTotalBudget)}).\n\nTetap simpan transaksi ini?`);
+            if (!overConfirm) return;
         }
 
         expenses.push({ id: Date.now(), date, category, desc, amount });
@@ -640,8 +696,7 @@
 
         saveData();
 
-        // Otomatis ubah tampilan bulan sesuai transaksi yang baru ditambah
-        document.getElementById("filter-month").value = date.substring(0, 7);
+        document.getElementById("filter-month").value = selectedMonth;
         updateDashboard();
     }
 
@@ -653,12 +708,21 @@
 
     function updateDashboard() {
         const selectedMonth = document.getElementById("filter-month").value;
-
-        // Filter Transaksi Berdasarkan Bulan Terpilih
         const filteredExpenses = expenses.filter(e => !selectedMonth || e.date.startsWith(selectedMonth));
 
-        const sumCategoriesBudget = Object.values(categories).reduce((a, b) => a + b, 0);
-        const totalBudget = customTotalBudget !== null ? customTotalBudget : sumCategoriesBudget;
+        const totalBudget = customTotalBudget || 0;
+
+        // Cek Notifikasi Visual Jika Budget Masih 0
+        const alertBanner = document.getElementById("alert-banner");
+        const cardBudget = document.getElementById("card-budget");
+
+        if (totalBudget === 0) {
+            alertBanner.classList.add("show");
+            cardBudget.classList.add("need-budget");
+        } else {
+            alertBanner.classList.remove("show");
+            cardBudget.classList.remove("need-budget");
+        }
 
         const categoryTotals = {};
         Object.keys(categories).forEach(c => categoryTotals[c] = 0);
@@ -702,7 +766,7 @@
             rekapTbody.appendChild(tr);
         });
 
-        // Tabel Riwayat
+        // Tabel Riwayat Transaksi
         const transTbody = document.getElementById("table-transaksi-body");
         transTbody.innerHTML = "";
         filteredExpenses.slice().reverse().forEach(e => {
