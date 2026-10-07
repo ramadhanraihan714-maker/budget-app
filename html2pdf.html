@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Pengeluaran Bulanan Interaktif</title>
+    <!-- Chart.js UMD -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- html2pdf.js Bundle -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --primary: #4B808D;
+            --primary-dark: #3a6570;
+            --primary-light: #E5EFF2;
+            --zebra: #F2F7F8;
+            --bg: #F8FAFC;
+            --card-bg: #FFFFFF;
+            --text-main: #1E293B;
+            --text-muted: #64748B;
+            --border: #CBD5E1;
+            --success: #10B981;
+            --danger: #EF4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+
+        /* Banner Header */
+        .banner {
+            background-color: var(--primary);
+            color: white;
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .banner h1 {
+            font-size: 24px;
+            letter-spacing: 2px;
+            font-weight: 700;
+        }
+
+        .banner h2 {
+            font-size: 14px;
+            font-weight: 400;
+            margin-top: 4px;
+            opacity: 0.9;
+        }
+
+        /* Filter Controls */
+        .filter-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 12px 20px;
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .filter-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        /* KPI Cards Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .kpi-card {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--card-bg);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .kpi-card.editable {
+            cursor: pointer;
+        }
+
+        .kpi-card.editable:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .kpi-title {
+            background-color: var(--primary);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            padding: 8px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .kpi-value {
+            background-color: var(--primary-light);
+            text-align: center;
+            padding: 14px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-main);
+            position: relative;
+        }
+
+        .edit-hint {
+            font-size: 10px;
+            color: var(--primary-dark);
+            font-weight: 600;
+            margin-top: 2px;
+        }
+
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 992px) {
+            .dashboard-grid {
+                grid-template-columns: 1.2fr 0.8fr;
+            }
+        }
+
+        .card-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .section-header {
+            background-color: var(--primary);
+            color: white;
+            padding: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            text-align: center;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header span {
+            flex-grow: 1;
+        }
+
+        /* Forms & Inputs */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        input, select {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 13px;
+            outline: none;
+            width: 100%;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary);
+        }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background-color: white;
+            color: var(--primary);
+            border: 1px solid white;
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--primary-light);
+            color: var(--primary-dark);
+        }
+
+        .btn-pdf {
+            background-color: #059669;
+            color: white;
+        }
+
+        .btn-pdf:hover {
+            background-color: #047857;
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+            padding: 3px 6px;
+            font-size: 11px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        /* Tables */
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+
+        tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        tr:nth-child(even) td {
+            background-color: var(--zebra);
+        }
+
+        .badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .badge-success { background-color: #D1FAE5; color: #065F46; }
+        .badge-danger { background-color: #FEE2E2; color: #991B1B; }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-card {
+            background: white;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .modal-header {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--primary-light);
+        }
+
+        .category-manage-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            background: var(--zebra);
+            padding: 6px 10px;
+            border-radius: 4px;
+        }
+
+        .category-manage-item input[type="text"] {
+            flex: 1;
+        }
+
+        .category-manage-item input[type="number"] {
+            width: 120px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 320px;
+            margin: 0 auto;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        /* Class khusus menyembunyikan elemen saat ekspor PDF */
+        .hide-on-pdf {
+            display: table-cell;
+        }
+        .pdf-exporting .hide-on-pdf,
+        .pdf-exporting .form-input-card,
+        .pdf-exporting .filter-container,
+        .pdf-exporting .edit-hint {
+            display: none !important;
+        }
+
+        .pdf-exporting .table-responsive {
+            max-height: none !important;
+            overflow: visible !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="dashboard-content">
+    <!-- Header Banner -->
+    <div class="banner">
+        <h1>DASHBOARD PENGELUARAN BULANAN</h1>
+        <h2>PENGELUARAN & ANGGARAN INTERAKTIF</h2>
+    </div>
+
+    <!-- Filter & Export Controls -->
+    <div class="filter-container">
+        <div class="filter-group">
+            <label for="filter-month">Periode:</label>
+            <input type="month" id="filter-month" onchange="updateDashboard()" style="width: auto;">
+        </div>
+        <div>
+            <button class="btn btn-pdf" onclick="exportToPDF()">📄 Ekspor Laporan PDF</button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="kpi-grid">
+        <!-- Kartu 1: Target Budget Total -->
+        <div class="kpi-card editable" onclick="editTotalBudgetDirectly()" title="Klik untuk mengubah Target Budget Total">
+            <div class="kpi-title">
+                <span>TARGET BUDGET TOTAL</span> ✏️
+            </div>
+            <div class="kpi-value">
+                <div id="kpi-budget">Rp 3.000.000</div>
+                <div class="edit-hint">(Klik untuk ubah)</div>
+            </div>
+        </div>
+
+        <!-- Kartu 2: Total Pengeluaran -->
+        <div class="kpi-card">
+            <div class="kpi-title">TOTAL PENGELUARAN</div>
+            <div class="kpi-value">
+                <div id="kpi-total">Rp 0</div>
+            </div>
+        </div>
+
+        <!-- Kartu 3: Sisa Budget -->
+        <div class="kpi-card">
+            <div class="kpi-title">SISA BUDGET</div>
+            <div class="kpi-value">
+                <div id="kpi-sisa">Rp 0</div>
+            </div>
+        </div>
+
+        <!-- Kartu 4: % Anggaran Terpakai -->
+        <div class="kpi-card">
+            <div class="kpi-title">% ANGGARAN TERPAKAI</div>
+            <div class="kpi-value">
+                <div id="kpi-pct">0.0%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Layout Grid -->
+    <div class="dashboard-grid">
+        <!-- Left Column -->
+        <div>
+            <!-- Form Input Transaksi -->
+            <div class="card-box form-input-card">
+                <div class="section-header">
+                    <span>TAMBAH PENGELUARAN BARU</span>
+                </div>
+                <div class="form-grid">
+                    <input type="date" id="input-date">
+                    <select id="input-category">
+                        <!-- Populated dynamically -->
+                    </select>
+                    <input type="text" id="input-desc" placeholder="Keterangan...">
+                    <input type="number" id="input-amount" placeholder="Nominal (Rp)...">
+                </div>
+                <button class="btn" style="width: 100%;" onclick="addExpense()">+ Simpan Transaksi</button>
+            </div>
+
+            <!-- Tabel Rekap Kategori -->
+            <div class="card-box">
+                <div class="section-header">
+                    <span>REKAP PENGELUARAN PER KATEGORI</span>
+                    <button class="btn btn-secondary hide-on-pdf" onclick="openCategoryModal()">⚙️ Kelola Kategori & Budget</button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Kategori</th>
+                                <th>Real (Rp)</th>
+                                <th>% Total</th>
+                                <th>Budget</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-rekap-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div>
+            <!-- Chart Card -->
+            <div class="card-box">
+                <div class="section-header">
+                    <span>PROPORSI PENGELUARAN</span>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="expenseDonutChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tabel Riwayat Transaksi -->
+            <div class="card-box">
+                <div class="section-header">
+                    <span>CATATAN TRANSAKSI HARIAN</span>
+                </div>
+                <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tgl</th>
+                                <th>Kategori</th>
+                                <th>Ket.</th>
+                                <th>Jumlah</th>
+                                <th class="hide-on-pdf">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-transaksi-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL KELOLA KATEGORI & BUDGET CUSTOM -->
+<div class="modal-overlay" id="categoryModal">
+    <div class="modal-card">
+        <div class="modal-header">⚙️ Kelola Kategori & Budget Target</div>
+        
+        <!-- Form Tambah Kategori Baru -->
+        <div style="background: var(--primary-light); padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--primary-dark); margin-bottom: 8px;">
+                + TAMBAH KATEGORI BARU
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="new-cat-name" placeholder="Nama Kategori (misal: Skincare)">
+                <input type="number" id="new-cat-budget" placeholder="Budget (Rp)" style="width: 140px;">
+                <button class="btn" onclick="addNewCategory()">Tambah</button>
+            </div>
+        </div>
+
+        <!-- Daftar Kategori Yang Ada -->
+        <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px;">DAFTAR KATEGORI & BUDGET:</div>
+        <div id="category-list-container">
+            <!-- Injected by JS -->
+        </div>
+
+        <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="btn" style="background-color: var(--text-muted);" onclick="closeCategoryModal()">Batal</button>
+            <button class="btn" onclick="saveCategoriesAndBudgets()">Simpan Perubahan</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Data Kategori Default
+    let categories = {
+        "Belanja": 600000,
+        "Transportasi": 200000,
+        "Makanan": 400000,
+        "Tagihan": 500000,
+        "Hiburan": 150000,
+        "Kesehatan": 200000,
+        "Pendidikan": 300000,
+        "Rumah Tangga": 150000,
+        "Cicilan": 300000,
+        "Keluarga": 200000
+    };
+
+    let expenses = [
+        { id: 1, date: "2026-10-01", category: "Belanja", desc: "Belanja Sembako", amount: 500000 },
+        { id: 2, date: "2026-10-02", category: "Transportasi", desc: "Isi Bensin Mobil", amount: 150000 },
+        { id: 3, date: "2026-10-03", category: "Makanan", desc: "Makan Siang & Kopi", amount: 85000 }
+    ];
+
+    let customTotalBudget = null;
+    let expenseChart = null;
+
+    function formatRp(val) {
+        return "Rp " + Number(val).toLocaleString('id-ID');
+    }
+
+    // Set Default Bulan ke Bulan-Tahun Saat Ini
+    function setDefaultFilterMonth() {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        document.getElementById("filter-month").value = `${year}-${month}`;
+    }
+
+    // Load Data LocalStorage
+    function loadData() {
+        const savedCategories = localStorage.getItem("custom_categories_cfg");
+        if (savedCategories) {
+            try { categories = JSON.parse(savedCategories); } catch(e){}
+        }
+
+        const savedExpenses = localStorage.getItem("custom_expenses_data");
+        if (savedExpenses) {
+            try { expenses = JSON.parse(savedExpenses); } catch(e){}
+        }
+
+        const savedTotalBudget = localStorage.getItem("custom_total_budget_val");
+        if (savedTotalBudget !== null) {
+            customTotalBudget = parseFloat(savedTotalBudget);
+        }
+
+        document.getElementById("input-date").valueAsDate = new Date();
+        setDefaultFilterMonth();
+        populateCategoryDropdown();
+    }
+
+    function saveData() {
+        localStorage.setItem("custom_categories_cfg", JSON.stringify(categories));
+        localStorage.setItem("custom_expenses_data", JSON.stringify(expenses));
+        if (customTotalBudget !== null) {
+            localStorage.setItem("custom_total_budget_val", customTotalBudget);
+        }
+    }
+
+    function editTotalBudgetDirectly() {
+        const currentSum = Object.values(categories).reduce((a, b) => a + b, 0);
+        const currentTotal = customTotalBudget !== null ? customTotalBudget : currentSum;
+
+        const input = prompt("Masukkan Target Budget Total Bulanan yang Baru (Rp):", currentTotal);
+        if (input !== null) {
+            const newTotal = parseFloat(input);
+            if (!isNaN(newTotal) && newTotal >= 0) {
+                customTotalBudget = newTotal;
+                saveData();
+                updateDashboard();
+            } else {
+                alert("Nominal yang Anda masukkan tidak valid!");
+            }
+        }
+    }
+
+    function populateCategoryDropdown() {
+        const select = document.getElementById("input-category");
+        select.innerHTML = "";
+        Object.keys(categories).forEach(cat => {
+            const opt = document.createElement("option");
+            opt.value = cat;
+            opt.innerText = cat;
+            select.appendChild(opt);
+        });
+    }
+
+    // Modal Control
+    function openCategoryModal() {
+        renderModalCategoryList();
+        document.getElementById("categoryModal").style.display = "flex";
+    }
+
+    function closeCategoryModal() {
+        document.getElementById("categoryModal").style.display = "none";
+    }
+
+    function renderModalCategoryList() {
+        const container = document.getElementById("category-list-container");
+        container.innerHTML = "";
+
+        Object.keys(categories).forEach(cat => {
+            const div = document.createElement("div");
+            div.className = "category-manage-item";
+            div.innerHTML = `
+                <input type="text" class="edit-cat-name" value="${cat}" data-old-name="${cat}">
+                <input type="number" class="edit-cat-budget" value="${categories[cat]}" placeholder="Budget">
+                <button class="btn-danger" onclick="deleteCategory('${cat}')">✕ Hapus</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function addNewCategory() {
+        const nameInput = document.getElementById("new-cat-name");
+        const budgetInput = document.getElementById("new-cat-budget");
+
+        const name = nameInput.value.trim();
+        const budget = parseFloat(budgetInput.value) || 0;
+
+        if (!name) {
+            alert("Nama kategori tidak boleh kosong!");
+            return;
+        }
+
+        if (categories[name] !== undefined) {
+            alert("Kategori dengan nama ini sudah ada!");
+            return;
+        }
+
+        categories[name] = budget;
+        nameInput.value = "";
+        budgetInput.value = "";
+
+        renderModalCategoryList();
+    }
+
+    function deleteCategory(catName) {
+        if (confirm(`Hapus kategori "${catName}"?`)) {
+            delete categories[catName];
+            renderModalCategoryList();
+        }
+    }
+
+    function saveCategoriesAndBudgets() {
+        const items = document.querySelectorAll(".category-manage-item");
+        const newCategoriesObj = {};
+
+        items.forEach(item => {
+            const newName = item.querySelector(".edit-cat-name").value.trim();
+            const newBudget = parseFloat(item.querySelector(".edit-cat-budget").value) || 0;
+            const oldName = item.querySelector(".edit-cat-name").getAttribute("data-old-name");
+
+            if (newName) {
+                newCategoriesObj[newName] = newBudget;
+
+                if (oldName !== newName) {
+                    expenses.forEach(e => {
+                        if (e.category === oldName) e.category = newName;
+                    });
+                }
+            }
+        });
+
+        categories = newCategoriesObj;
+        customTotalBudget = null;
+        localStorage.removeItem("custom_total_budget_val");
+
+        saveData();
+        populateCategoryDropdown();
+        updateDashboard();
+        closeCategoryModal();
+    }
+
+    function addExpense() {
+        const date = document.getElementById("input-date").value;
+        const category = document.getElementById("input-category").value;
+        const desc = document.getElementById("input-desc").value.trim();
+        const amount = parseFloat(document.getElementById("input-amount").value);
+
+        if (!date || !category || !desc || isNaN(amount) || amount <= 0) {
+            alert("Harap isi semua kolom transaksi dengan benar!");
+            return;
+        }
+
+        expenses.push({ id: Date.now(), date, category, desc, amount });
+
+        document.getElementById("input-desc").value = "";
+        document.getElementById("input-amount").value = "";
+
+        saveData();
+        
+        // Sesuaikan filter bulan dengan tanggal pengeluaran yang baru ditambahkan
+        const expMonth = date.substring(0, 7);
+        document.getElementById("filter-month").value = expMonth;
+
+        updateDashboard();
+    }
+
+    function deleteExpense(id) {
+        expenses = expenses.filter(e => e.id !== id);
+        saveData();
+        updateDashboard();
+    }
+
+    function updateDashboard() {
+        const selectedMonth = document.getElementById("filter-month").value;
+
+        // Filter data pengeluaran berdasarkan Bulan & Tahun terpilih
+        const filteredExpenses = expenses.filter(e => {
+            if (!selectedMonth) return true;
+            return e.date.startsWith(selectedMonth);
+        });
+
+        // Total budget
+        const sumCategoriesBudget = Object.values(categories).reduce((a, b) => a + b, 0);
+        const totalBudget = customTotalBudget !== null ? customTotalBudget : sumCategoriesBudget;
+
+        // Hitung pengeluaran per kategori yang terfilter
+        const categoryTotals = {};
+        Object.keys(categories).forEach(c => categoryTotals[c] = 0);
+
+        let grandTotal = 0;
+        filteredExpenses.forEach(e => {
+            if (categoryTotals[e.category] !== undefined) {
+                categoryTotals[e.category] += e.amount;
+            } else {
+                categoryTotals[e.category] = e.amount;
+            }
+            grandTotal += e.amount;
+        });
+
+        // Update KPI Cards
+        const sisaBudget = totalBudget - grandTotal;
+        const pctUsed = totalBudget > 0 ? ((grandTotal / totalBudget) * 100).toFixed(1) : "0.0";
+
+        document.getElementById("kpi-budget").innerText = formatRp(totalBudget);
+        document.getElementById("kpi-total").innerText = formatRp(grandTotal);
+        document.getElementById("kpi-sisa").innerText = formatRp(sisaBudget);
+        document.getElementById("kpi-pct").innerText = pctUsed + "%";
+
+        // Render Tabel Rekap Kategori
+        const rekapTbody = document.getElementById("table-rekap-body");
+        rekapTbody.innerHTML = "";
+
+        const chartLabels = [];
+        const chartData = [];
+
+        Object.keys(categories).forEach(cat => {
+            const real = categoryTotals[cat] || 0;
+            const pct = grandTotal > 0 ? ((real / grandTotal) * 100).toFixed(1) : "0.0";
+            const budget = categories[cat];
+            const isOver = real > budget && budget > 0;
+
+            if (real > 0) {
+                chartLabels.push(cat);
+                chartData.push(real);
+            }
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td style="text-align: left; font-weight: 600;">${cat}</td>
+                <td style="text-align: right;">${formatRp(real)}</td>
+                <td style="text-align: right;">${pct}%</td>
+                <td style="text-align: right;">${formatRp(budget)}</td>
+                <td><span class="badge ${isOver ? 'badge-danger' : 'badge-success'}">${isOver ? 'Over' : 'Aman'}</span></td>
+            `;
+            rekapTbody.appendChild(tr);
+        });
+
+        // Render Riwayat Transaksi (terfilter)
+        const transTbody = document.getElementById("table-transaksi-body");
+        transTbody.innerHTML = "";
+
+        filteredExpenses.slice().reverse().forEach(e => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${e.date.split('-').slice(1).join('/')}</td>
+                <td>${e.category}</td>
+                <td style="text-align: left;">${e.desc}</td>
+                <td style="text-align: right;">${formatRp(e.amount)}</td>
+                <td class="hide-on-pdf"><button class="btn-danger" onclick="deleteExpense(${e.id})">✕</button></td>
+            `;
+            transTbody.appendChild(tr);
+        });
+
+        // Update Chart
+        renderChart(chartLabels, chartData);
+    }
+
+    function renderChart(labels, data) {
+        const chartElement = document.getElementById('expenseDonutChart');
+        if (!chartElement) return;
+
+        const ctx = chartElement.getContext('2d');
+
+        if (expenseChart) {
+            expenseChart.destroy();
+        }
+
+        expenseChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: [
+                        '#4B808D', '#10B981', '#F59E0B', '#6366F1', '#EC4899',
+                        '#8B5CF6', '#14B8A6', '#F97316', '#06B6D4', '#64748B'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: false, // Mematikan animasi agar tertangkap sempurna saat render PDF
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            font: { size: 10 }
+                        }
+                    }
+                },
+                cutout: '55%'
+            }
+        });
+    }
+
+    // Fungsi Ekspor ke PDF
+    function exportToPDF() {
+        const element = document.getElementById('dashboard-content');
+        const selectedMonth = document.getElementById("filter-month").value || "Laporan";
+
+        element.classList.add('pdf-exporting');
+
+        const opt = {
+            margin:       [10, 10, 10, 10],
+            filename:     `Laporan_Pengeluaran_${selectedMonth}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, logging: false },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+        };
+
+        html2pdf().set(opt).from(element).save().then(() => {
+            element.classList.remove('pdf-exporting');
+        });
+    }
+
+    window.onload = function() {
+        loadData();
+        updateDashboard();
+    };
+</script>
+
+</body>
+</html>
